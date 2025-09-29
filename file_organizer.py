@@ -1,88 +1,118 @@
+zaalima file automation project..  code  
 import os
 import shutil
 import logging
-from datetime import datetime
+import tkinter as tk
+from tkinter import filedialog, messagebox
 
 # -----------------------------
-# Configuration
+# Logging Configuration
 # -----------------------------
+log_file = "file_organizer.txt"  # logs will save in same folder as script
+logging.basicConfig(
+    filename=log_file,
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
-# Categories and their file extensions
+# Categories and file extensions
 CATEGORIES = {
     "Documents": [".pdf", ".docx", ".doc", ".txt", ".xlsx", ".pptx"],
     "Images": [".jpg", ".jpeg", ".png", ".gif", ".bmp"],
-    "Videos": [".mp4", ".mkv", ".flv", ".avi"],
+    "Videos": [".mp4", ".mkv", ".avi", ".mov"],
     "Music": [".mp3", ".wav", ".aac"],
     "Archives": [".zip", ".rar", ".tar", ".gz"],
     "Others": []
 }
 
-# Set up logging
-LOG_DIR = "logs"
-os.makedirs(LOG_DIR, exist_ok=True)
-logging.basicConfig(
-    filename=os.path.join(LOG_DIR, f"file_organizer_{datetime.now().date()}.log"),
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
-
-
 # -----------------------------
-# Helper Functions
+# File Organizer Logic
 # -----------------------------
-
-def get_category(file_name):
-    """Return the category of a file based on extension."""
-    ext = os.path.splitext(file_name)[1].lower()
-    for category, extensions in CATEGORIES.items():
-        if ext in extensions:
-            return category
-    return "Others"
-
-
-def organize_files(source_dir, target_dir):
-    """Organize files from source_dir into target_dir based on file type."""
+def organize_files(source_dir, target_dir=None):
     try:
-        if not os.path.exists(source_dir):
-            logging.error(f"Source directory does not exist: {source_dir}")
-            return
-
-        os.makedirs(target_dir, exist_ok=True)
-
-        for file in os.listdir(source_dir):
-            file_path = os.path.join(source_dir, file)
+        for filename in os.listdir(source_dir):
+            file_path = os.path.join(source_dir, filename)
 
             if os.path.isfile(file_path):
-                category = get_category(file)
-                category_path = os.path.join(target_dir, category)
-                os.makedirs(category_path, exist_ok=True)
+                _, ext = os.path.splitext(filename)
+                moved = False
 
-                new_path = os.path.join(category_path, file)
+                for category, extensions in CATEGORIES.items():
+                    if ext.lower() in extensions:
+                        # Decide destination folder
+                        if target_dir:
+                            category_folder = os.path.join(target_dir, category)
+                        else:
+                            category_folder = os.path.join(source_dir, category)
 
-                try:
-                    shutil.move(file_path, new_path)
-                    logging.info(f"Moved: {file} → {category}/")
-                    print(f"[OK] {file} → {category}/")
-                except Exception as e:
-                    logging.error(f"Error moving {file}: {e}")
-                    print(f"[ERROR] Could not move {file}")
+                        os.makedirs(category_folder, exist_ok=True)
+                        shutil.move(file_path, os.path.join(category_folder, filename))
+                        logging.info(f"Moved: {filename} -> {category_folder}")
+                        moved = True
+                        break
 
-        print("\n✅ File organization completed successfully!")
-        logging.info("File organization completed successfully.")
+                if not moved:  # goes to "Others"
+                    if target_dir:
+                        other_folder = os.path.join(target_dir, "Others")
+                    else:
+                        other_folder = os.path.join(source_dir, "Others")
+
+                    os.makedirs(other_folder, exist_ok=True)
+                    shutil.move(file_path, os.path.join(other_folder, filename))
+                    logging.info(f"Moved: {filename} -> {other_folder}")
+
+        messagebox.showinfo("Success", "Files organized successfully!")
+        messagebox.showinfo("Log File", f"Logs saved in:\n{os.path.abspath(log_file)}")
 
     except Exception as e:
-        logging.error(f"Unexpected error: {e}")
-        print(f"[FATAL] {e}")
-
+        logging.error(f"Error: {e}")
+        messagebox.showerror("Error", str(e))
 
 # -----------------------------
-# Main Execution
+# Tkinter GUI
 # -----------------------------
+def select_source():
+    path = filedialog.askdirectory(title="Select Source Folder")
+    if path:
+        source_entry.delete(0, tk.END)
+        source_entry.insert(0, path)
 
-if __name__ == "__main__":
-    print("=== File Organizer ===")
-    source = input("Enter source directory path: ").strip()
-    target = input("Enter target directory path: ").strip()
+def select_target():
+    path = filedialog.askdirectory(title="Select Target Folder")
+    if path:
+        target_entry.delete(0, tk.END)
+        target_entry.insert(0, path)
 
-    organize_files(source, target)
+def run_organizer():
+    source = source_entry.get()
+    target = target_entry.get().strip()
 
+    if not source:
+        messagebox.showerror("Error", "Please select a source folder!")
+        return
+
+    if target:
+        organize_files(source, target)  # Between two folders
+    else:
+        organize_files(source)  # Within same folder
+
+# -----------------------------
+# GUI Layout
+# -----------------------------
+root = tk.Tk()
+root.title("File Organizer")
+root.geometry("500x250")
+
+tk.Label(root, text="Source Folder:").pack(pady=5)
+source_entry = tk.Entry(root, width=50)
+source_entry.pack()
+tk.Button(root, text="Browse", command=select_source).pack(pady=5)
+
+tk.Label(root, text="Target Folder (Optional):").pack(pady=5)
+target_entry = tk.Entry(root, width=50)
+target_entry.pack()
+tk.Button(root, text="Browse", command=select_target).pack(pady=5)
+
+tk.Button(root, text="Organize Files", command=run_organizer, bg="green", fg="white").pack(pady=20)
+
+root.mainloop()
